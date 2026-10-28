@@ -1,0 +1,21 @@
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import Employee from './src/models/Employee.js';
+import Leave from './src/models/Leave.js';
+import Attendance from './src/models/Attendance.js';
+import Announcement from './src/models/Announcement.js';
+dotenv.config();
+const app=express();
+app.use(cors({origin:process.env.CLIENT_ORIGIN||'http://localhost:5173'}));
+app.use(express.json());
+app.get('/api/health',(_req,res)=>res.json({status:'ok',service:'StaffSync API'}));
+app.get('/api/employees',async(_req,res)=>{try{res.json(await Employee.find().sort({createdAt:-1}));}catch(e){res.status(500).json({message:e.message});}});
+app.post('/api/employees',async(req,res)=>{try{res.status(201).json(await Employee.create(req.body));}catch(e){res.status(400).json({message:e.message});}});
+app.get('/api/leaves',async(_req,res)=>{try{res.json(await Leave.find().populate('employee','name email'));}catch(e){res.status(500).json({message:e.message});}});
+app.patch('/api/leaves/:id/status',async(req,res)=>{if(!['Pending','Approved','Rejected'].includes(req.body.status))return res.status(400).json({message:'Invalid status'});try{const x=await Leave.findByIdAndUpdate(req.params.id,{status:req.body.status},{new:true,runValidators:true});if(!x)return res.status(404).json({message:'Leave request not found'});res.json(x);}catch(e){res.status(400).json({message:e.message});}});
+app.get('/api/attendance',async(_req,res)=>{try{res.json(await Attendance.find().populate('employee','name email department'));}catch(e){res.status(500).json({message:e.message});}});
+app.post('/api/announcements',async(req,res)=>{try{res.status(201).json(await Announcement.create(req.body));}catch(e){res.status(400).json({message:e.message});}});
+const port=process.env.PORT||5000;
+try{await mongoose.connect(process.env.MONGODB_URI||'mongodb://127.0.0.1:27017/staffsync');console.log('MongoDB connected');app.listen(port,()=>console.log(`API at http://localhost:${port}/api`));}catch(e){console.error('MongoDB connection failed:',e.message);process.exit(1);}
